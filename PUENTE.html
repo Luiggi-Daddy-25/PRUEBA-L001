@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba Escáner QR</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 450px; margin: 20px auto; padding: 15px; }
+    #reader { width: 100%; margin-bottom: 15px; }
+    input, button { width: 100%; padding: 12px; margin-top: 10px; box-sizing: border-box; font-size: 16px; }
+    button { background-color: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    button:disabled { background-color: #9ca3af; }
+    #estado { margin-top: 15px; font-weight: bold; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h2>Registro Inorgánicos (Prueba)</h2>
+  
+  <div id="reader"></div>
+
+  <label>Código QR escaneado:</label>
+  <input type="text" id="qr" placeholder="Escanea un código o escribe aquí..." required>
+
+  <label>Observación:</label>
+  <input type="text" id="observacion" placeholder="Ej: Bolsa segregada correctamente">
+
+  <button id="btnEnviar" onclick="enviarDatos()">Enviar a Sheets</button>
+  <p id="estado"></p>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhJ9VjwiLT3TwN-bnCNp3vRbokyRFRdNfqa4SIbOIss2CblSoXUQ5UXEAJACTOSJt3LQ/exec";
+
+    // Iniciar escáner QR con cámara trasera
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (decodedText) => {
+        document.getElementById("qr").value = decodedText;
+        document.getElementById("estado").innerText = "✅ QR detectado";
+      }
+    ).catch(err => {
+      document.getElementById("estado").innerText = "⚠️ No se pudo abrir la cámara (¿Estás en HTTPS?)";
+    });
+
+    // Enviar datos a Google Sheets
+    function enviarDatos() {
+      const qr = document.getElementById("qr").value.trim();
+      const observacion = document.getElementById("observacion").value.trim();
+      const btn = document.getElementById("btnEnviar");
+      const estado = document.getElementById("estado");
+
+      if (!qr) {
+        alert("Por favor escanea o escribe un código QR primero.");
+        return;
+      }
+
+      btn.disabled = true;
+      estado.innerText = "⏳ Enviando datos...";
+
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qr: qr, observacion: observacion })
+      })
+      .then(() => {
+        estado.innerText = "🎉 ¡Guardado en Google Sheets!";
+        document.getElementById("qr").value = "";
+        document.getElementById("observacion").value = "";
+      })
+      .catch(error => {
+        estado.innerText = "❌ Error al enviar: " + error;
+      })
+      .finally(() => {
+        btn.disabled = false;
+      });
+    }
+  </script>
+</body>
+</html>
