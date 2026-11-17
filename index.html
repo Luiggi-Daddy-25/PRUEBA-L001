@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro Rápido de Campo - v2.0</title>
+  <title>Ficha de Campo Segura - v3.0</title>
   <style>
     * {
       box-sizing: border-box;
@@ -28,8 +28,8 @@
     }
     .badge-version {
       display: inline-block;
-      background: #e6f4ea;
-      color: #137333;
+      background: #dbeafe;
+      color: #1e40af;
       font-size: 12px;
       font-weight: 700;
       padding: 4px 10px;
@@ -50,10 +50,26 @@
       display: block;
       font-weight: 600;
       color: #334155;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       font-size: 14px;
     }
-    /* Contenedor de Etiquetas (Chips) */
+    input[type="text"], input[type="password"], textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 15px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus {
+      border-color: #0d9488;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 85px;
+    }
     .chips-container {
       display: flex;
       flex-wrap: wrap;
@@ -72,29 +88,11 @@
       transition: all 0.2s ease;
       user-select: none;
     }
-    .chip:hover {
-      background-color: #e2e8f0;
-    }
     .chip.selected {
       background-color: #0d9488;
       color: #ffffff;
       border-color: #0f766e;
       box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35);
-    }
-    textarea {
-      width: 100%;
-      padding: 12px;
-      border: 2px solid #cbd5e1;
-      border-radius: 10px;
-      font-size: 15px;
-      resize: vertical;
-      min-height: 85px;
-      margin-bottom: 18px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    textarea:focus {
-      border-color: #0d9488;
     }
     button.btn-submit {
       width: 100%;
@@ -115,19 +113,62 @@
       background-color: #94a3b8;
       cursor: not-allowed;
     }
-    #estado {
+    .topbar-user {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f1f5f9;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .btn-logout {
+      background: none;
+      border: none;
+      color: #dc2626;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .status-msg {
       margin-top: 14px;
       text-align: center;
       font-size: 14px;
       font-weight: 600;
       min-height: 20px;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <span class="badge-version">v2.0 • Actualizado desde GitHub</span>
+  <!-- PANTALLA 1: LOGIN -->
+  <div class="card" id="loginCard">
+    <span class="badge-version">v3.0 • Acceso Protegido</span>
+    <h2>Iniciar Sesión</h2>
+    <p class="subtitle">Ingresa tus credenciales autorizadas para registrar datos:</p>
+
+    <label for="loginUser">Usuario:</label>
+    <input type="text" id="loginUser" placeholder="Ej. luiggi" autocomplete="username">
+
+    <label for="loginPass">Contraseña:</label>
+    <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+
+    <button class="btn-submit" id="btnLogin" onclick="iniciarSesion()">Ingresar</button>
+    <div class="status-msg" id="loginEstado"></div>
+  </div>
+
+  <!-- PANTALLA 2: FORMULARIO DE REGISTRO (Oculto hasta validar) -->
+  <div class="card hidden" id="appCard">
+    <div class="topbar-user">
+      <span>👤 Conectado: <strong id="usuarioActivoLabel"></strong></span>
+      <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+    </div>
+
     <h2>Ficha de Campo Rápida</h2>
     <p class="subtitle">Selecciona una o varias etiquetas para registrar el punto:</p>
 
@@ -145,20 +186,84 @@
     <textarea id="observacion" placeholder="Ej. Jr. Ucayali cuadra 4, vecino participó..."></textarea>
 
     <button class="btn-submit" id="btnEnviar" onclick="enviarDatos()">Guardar Registro</button>
-    <div id="estado"></div>
+    <div class="status-msg" id="estado"></div>
   </div>
 
   <script>
-    // PEGA AQUÍ LA URL DE TU IMPLEMENTACIÓN DE APPS SCRIPT ("Puente app")
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhJ9VjwiLT3TwN-bnCNp3vRbokyRFRdNfqa4SIbOIss2CblSoXUQ5UXEAJACTOSJt3LQ/exec";
 
-    // Lógica para activar/desactivar etiquetas al tocarlas
-    const chips = document.querySelectorAll('.chip');
-    chips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        chip.classList.toggle('selected');
-      });
+    let sesionUsuario = "";
+    let sesionClave = "";
+
+    // Activar/desactivar etiquetas
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => chip.classList.toggle('selected'));
     });
+
+    // Permitir entrar presionando Enter en la contraseña
+    document.getElementById('loginPass').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') iniciarSesion();
+    });
+
+    function iniciarSesion() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value.trim();
+      const estado = document.getElementById('loginEstado');
+      const btn = document.getElementById('btnLogin');
+
+      if (!user || !pass) {
+        estado.style.color = "#dc2626";
+        estado.textContent = "⚠️ Ingresa usuario y contraseña.";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Verificando...";
+      estado.style.color = "#0284c7";
+      estado.textContent = "🔐 Validando credenciales en servidor...";
+
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          accion: "login",
+          usuario: user,
+          clave: pass
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.result === "success") {
+          sesionUsuario = user;
+          sesionClave = pass;
+          document.getElementById('usuarioActivoLabel').textContent = user;
+          document.getElementById('loginCard').classList.add('hidden');
+          document.getElementById('appCard').classList.remove('hidden');
+          estado.textContent = "";
+        } else {
+          estado.style.color = "#dc2626";
+          estado.textContent = "❌ " + (data.error || "Acceso denegado.");
+        }
+      })
+      .catch(err => {
+        estado.style.color = "#dc2626";
+        estado.textContent = "❌ Error de red: " + err.message;
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "Ingresar";
+      });
+    }
+
+    function cerrarSesion() {
+      sesionUsuario = "";
+      sesionClave = "";
+      document.getElementById('loginUser').value = "";
+      document.getElementById('loginPass').value = "";
+      document.getElementById('estado').textContent = "";
+      document.getElementById('appCard').classList.add('hidden');
+      document.getElementById('loginCard').classList.remove('hidden');
+    }
 
     function enviarDatos() {
       const seleccionadas = Array.from(document.querySelectorAll('.chip.selected'))
@@ -173,7 +278,6 @@
         return;
       }
 
-      // Unimos las etiquetas en texto separado por comas para enviarlo en el campo "qr"
       const textoEtiquetas = seleccionadas.length > 0 ? seleccionadas.join(", ") : "Sin etiquetas";
 
       btn.disabled = true;
@@ -183,7 +287,11 @@
 
       fetch(SCRIPT_URL, {
         method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
+          accion: "guardar",
+          usuario: sesionUsuario,
+          clave: sesionClave,
           qr: textoEtiquetas,
           observacion: observacion
         })
@@ -192,12 +300,12 @@
       .then(data => {
         if (data.result === "success") {
           estado.style.color = "#16a34a";
-          estado.textContent = "✅ ¡Registro guardado correctamente!";
-          // Limpiar formulario tras guardar
+          estado.textContent = "✅ ¡Registro guardado por " + sesionUsuario + "!";
           document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
           document.getElementById('observacion').value = "";
         } else {
-          throw new Error(data.error || "Error desconocido");
+          estado.style.color = "#dc2626";
+          estado.textContent = "❌ " + (data.error || "No autorizado.");
         }
       })
       .catch(err => {
