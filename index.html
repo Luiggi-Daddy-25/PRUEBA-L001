@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ficha de Campo Segura - v3.0</title>
+  <title>Ficha de Campo Segura - v3.1 PWA</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d9488">
+  <meta name="mobile-web-app-capable" content="yes">
   <style>
     * {
       box-sizing: border-box;
@@ -148,7 +151,7 @@
 
   <!-- PANTALLA 1: LOGIN -->
   <div class="card" id="loginCard">
-    <span class="badge-version">v3.0 • Acceso Protegido</span>
+    <span class="badge-version">v3.1 • App Instalable (PWA)</span>
     <h2>Iniciar Sesión</h2>
     <p class="subtitle">Ingresa tus credenciales autorizadas para registrar datos:</p>
 
@@ -315,6 +318,15 @@
       .finally(() => {
         btn.disabled = false;
         btn.textContent = "Guardar Registro";
+      });
+    }
+
+    // Registrar Service Worker para convertir la web en App Instalable (PWA)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(() => console.log('PWA lista para instalar'))
+          .catch(err => console.error('Error SW:', err));
       });
     }
   </script>
