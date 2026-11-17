@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ficha de Campo GPS + Foto - v4.0</title>
+  <title>Ficha de Campo Offline + GPS + Foto - v4.1</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=FC&background=0d9488&color=fff&size=180&bold=true">
   <meta name="theme-color" content="#0d9488">
@@ -98,7 +98,6 @@
       border-color: #0f766e;
       box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35);
     }
-    /* Caja de GPS */
     .gps-box {
       display: flex;
       justify-content: space-between;
@@ -107,7 +106,7 @@
       border: 1.5px solid #cbd5e1;
       border-radius: 10px;
       padding: 10px 12px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
       font-size: 13px;
       color: #334155;
     }
@@ -121,7 +120,35 @@
       font-size: 12px;
       cursor: pointer;
     }
-    /* Botón de cámara */
+    /* Banner Offline y Pendientes */
+    .offline-banner {
+      background: #fef3c7;
+      border: 1.5px solid #f59e0b;
+      color: #92400e;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-sync {
+      background: #d97706;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-sync:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
     .camera-btn {
       display: flex;
       align-items: center;
@@ -192,9 +219,23 @@
       background: #f1f5f9;
       padding: 8px 12px;
       border-radius: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       font-size: 13px;
       color: #334155;
+    }
+    .net-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .net-online {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .net-offline {
+      background: #fee2e2;
+      color: #991b1b;
     }
     .btn-logout {
       background: none;
@@ -212,17 +253,17 @@
       min-height: 20px;
     }
     .hidden {
-      display: none;
+      display: none !important;
     }
   </style>
 </head>
 <body>
 
-  <!-- PANTALLA 1: LOGIN -->
+  <!-- PANTALLA 1: LOGIN (Solo requerido la primera vez con internet) -->
   <div class="card" id="loginCard">
-    <span class="badge-version">v4.0 • GPS + Evidencia Fotográfica</span>
+    <span class="badge-version">v4.1 • Modo Offline + GPS + Foto</span>
     <h2>Iniciar Sesión</h2>
-    <p class="subtitle">Ingresa tus credenciales autorizadas para registrar datos:</p>
+    <p class="subtitle">Inicia sesión con internet una vez; luego podrás trabajar sin señal en campo:</p>
 
     <label for="loginUser">Usuario:</label>
     <input type="text" id="loginUser" placeholder="Ej. luiggi" autocomplete="username">
@@ -237,14 +278,23 @@
   <!-- PANTALLA 2: FORMULARIO DE REGISTRO -->
   <div class="card hidden" id="appCard">
     <div class="topbar-user">
-      <span>👤 Conectado: <strong id="usuarioActivoLabel"></strong></span>
+      <div>
+        <span>👤 <strong id="usuarioActivoLabel"></strong></span>
+        <span id="netStatusBadge" class="net-badge net-online">● En línea</span>
+      </div>
       <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+    </div>
+
+    <!-- Banner de Cola Offline -->
+    <div class="offline-banner hidden" id="bannerPendientes">
+      <span id="textoPendientes">📦 0 pendientes</span>
+      <button type="button" class="btn-sync" id="btnSincronizar" onclick="sincronizarPendientes()">Subir ahora</button>
     </div>
 
     <h2>Ficha de Campo</h2>
     <p class="subtitle">Registra hallazgos, ubicación GPS y foto de evidencia:</p>
 
-    <!-- Estado GPS Automático -->
+    <!-- Estado GPS Automático (Funciona sin internet por satélite) -->
     <div class="gps-box">
       <span id="gpsTexto">📍 Obteniendo ubicación GPS...</span>
       <button type="button" class="btn-gps" onclick="obtenerGPS()">🔄 Actualizar</button>
@@ -281,12 +331,59 @@
 
   <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhJ9VjwiLT3TwN-bnCNp3vRbokyRFRdNfqa4SIbOIss2CblSoXUQ5UXEAJACTOSJt3LQ/exec";
+    const STORAGE_SESION = "ficha_campo_sesion_v1";
+    const STORAGE_COLA = "ficha_campo_cola_offline_v1";
 
     let sesionUsuario = "";
     let sesionClave = "";
     let latActual = "";
     let lonActual = "";
     let fotoComprimidaBase64 = "";
+
+    // Verificar al abrir si ya hay una sesión guardada en el dispositivo
+    window.addEventListener('DOMContentLoaded', () => {
+      const sesionGuardada = localStorage.getItem(STORAGE_SESION);
+      if (sesionGuardada) {
+        try {
+          const datos = JSON.parse(sesionGuardada);
+          if (datos.usuario && datos.clave) {
+            sesionUsuario = datos.usuario;
+            sesionClave = datos.clave;
+            abrirPantallaApp();
+          }
+        } catch (e) {
+          localStorage.removeItem(STORAGE_SESION);
+        }
+      }
+      actualizarEstadoRed();
+      actualizarBannerPendientes();
+    });
+
+    // Detectar cambios de conexión en tiempo real
+    window.addEventListener('online', () => {
+      actualizarEstadoRed();
+      sincronizarPendientes(); // Intenta subir automáticamente al recuperar internet
+    });
+    window.addEventListener('offline', actualizarEstadoRed);
+
+    function actualizarEstadoRed() {
+      const badge = document.getElementById('netStatusBadge');
+      if (navigator.onLine) {
+        badge.textContent = "● En línea";
+        badge.className = "net-badge net-online";
+      } else {
+        badge.textContent = "● Sin internet (Modo Offline)";
+        badge.className = "net-badge net-offline";
+      }
+    }
+
+    function abrirPantallaApp() {
+      document.getElementById('usuarioActivoLabel').textContent = sesionUsuario;
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('appCard').classList.remove('hidden');
+      obtenerGPS();
+      actualizarBannerPendientes();
+    }
 
     // Activar/desactivar etiquetas
     document.querySelectorAll('.chip').forEach(chip => {
@@ -297,13 +394,13 @@
       if (e.key === 'Enter') iniciarSesion();
     });
 
-    // Captura de Ubicación GPS
+    // Captura de Ubicación GPS (Funciona por satélite sin internet)
     function obtenerGPS() {
       const gpsTexto = document.getElementById('gpsTexto');
       gpsTexto.textContent = "⏳ Buscando satélites GPS...";
 
       if (!navigator.geolocation) {
-        gpsTexto.textContent = "❌ GPS no soportado en este dispositivo";
+        gpsTexto.textContent = "❌ GPS no soportado";
         return;
       }
 
@@ -323,7 +420,7 @@
       );
     }
 
-    // Comprimir foto en el navegador antes de subirla
+    // Comprimir foto en el navegador
     function procesarFoto(event) {
       const archivo = event.target.files[0];
       if (!archivo) return;
@@ -333,7 +430,7 @@
         const img = new Image();
         img.onload = function() {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Redimensiona a máx 800px para subida rápida
+          const MAX_WIDTH = 800;
           let width = img.width;
           let height = img.height;
 
@@ -347,7 +444,6 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Exportar como JPEG comprimido al 75% de calidad
           fotoComprimidaBase64 = canvas.toDataURL('image/jpeg', 0.75);
           document.getElementById('fotoPreview').src = fotoComprimidaBase64;
           document.getElementById('previewContainer').classList.remove('hidden');
@@ -375,6 +471,12 @@
         return;
       }
 
+      if (!navigator.onLine) {
+        estado.style.color = "#dc2626";
+        estado.textContent = "📡 Necesitas internet solo la primera vez para validar tu usuario.";
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = "Verificando...";
       estado.style.color = "#0284c7";
@@ -394,12 +496,10 @@
         if (data.result === "success") {
           sesionUsuario = user;
           sesionClave = pass;
-          document.getElementById('usuarioActivoLabel').textContent = user;
-          document.getElementById('loginCard').classList.add('hidden');
-          document.getElementById('appCard').classList.remove('hidden');
+          // Guardar sesión en el teléfono para uso offline posterior
+          localStorage.setItem(STORAGE_SESION, JSON.stringify({ usuario: user, clave: pass }));
           estado.textContent = "";
-          // Activar captura automática de GPS apenas entra
-          obtenerGPS();
+          abrirPantallaApp();
         } else {
           estado.style.color = "#dc2626";
           estado.textContent = "❌ " + (data.error || "Acceso denegado.");
@@ -416,6 +516,12 @@
     }
 
     function cerrarSesion() {
+      const pendientes = obtenerColaOffline();
+      if (pendientes.length > 0) {
+        const confirmar = confirm(`Tienes ${pendientes.length} registros sin subir. Si cierras sesión sin internet no podrás volver a entrar hasta tener señal. ¿Salir de todos modos?`);
+        if (!confirmar) return;
+      }
+      localStorage.removeItem(STORAGE_SESION);
       sesionUsuario = "";
       sesionClave = "";
       quitarFoto();
@@ -424,6 +530,42 @@
       document.getElementById('estado').textContent = "";
       document.getElementById('appCard').classList.add('hidden');
       document.getElementById('loginCard').classList.remove('hidden');
+    }
+
+    // Gestión de Cola Offline
+    function obtenerColaOffline() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_COLA)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function guardarEnColaOffline(registro) {
+      const cola = obtenerColaOffline();
+      cola.push(registro);
+      localStorage.setItem(STORAGE_COLA, JSON.stringify(cola));
+      actualizarBannerPendientes();
+    }
+
+    function actualizarBannerPendientes() {
+      const cola = obtenerColaOffline();
+      const banner = document.getElementById('bannerPendientes');
+      const texto = document.getElementById('textoPendientes');
+
+      if (cola.length > 0) {
+        banner.classList.remove('hidden');
+        texto.textContent = `📦 ${cola.length} registro(s) guardado(s) en el teléfono`;
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function limpiarFormularioTrasGuardar() {
+      document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
+      document.getElementById('observacion').value = "";
+      quitarFoto();
+      obtenerGPS();
     }
 
     function enviarDatos() {
@@ -440,6 +582,28 @@
       }
 
       const textoEtiquetas = seleccionadas.length > 0 ? seleccionadas.join(", ") : "Sin etiquetas";
+      const horaLocal = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const payload = {
+        accion: "guardar",
+        usuario: sesionUsuario,
+        clave: sesionClave,
+        qr: textoEtiquetas,
+        observacion: observacion,
+        latitud: latActual,
+        longitud: lonActual,
+        fotoBase64: fotoComprimidaBase64
+      };
+
+      // Si no hay internet, guardar directamente en el teléfono
+      if (!navigator.onLine) {
+        payload.observacion = (observacion ? observacion + " " : "") + `[Tomado offline ${horaLocal}]`;
+        guardarEnColaOffline(payload);
+        estado.style.color = "#d97706";
+        estado.textContent = "💾 Sin internet: guardado en el teléfono para subir luego.";
+        limpiarFormularioTrasGuardar();
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = "Subiendo...";
@@ -449,40 +613,76 @@
       fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          accion: "guardar",
-          usuario: sesionUsuario,
-          clave: sesionClave,
-          qr: textoEtiquetas,
-          observacion: observacion,
-          latitud: latActual,
-          longitud: lonActual,
-          fotoBase64: fotoComprimidaBase64
-        })
+        body: JSON.stringify(payload)
       })
       .then(res => res.json())
       .then(data => {
         if (data.result === "success") {
           estado.style.color = "#16a34a";
-          estado.textContent = "✅ ¡Guardado con ubicación" + (fotoComprimidaBase64 ? " y foto!" : "!");
-          document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
-          document.getElementById('observacion').value = "";
-          quitarFoto();
-          // Refrescar GPS para el siguiente punto
-          obtenerGPS();
+          estado.textContent = "✅ ¡Guardado en Google Sheets!";
+          limpiarFormularioTrasGuardar();
         } else {
-          estado.style.color = "#dc2626";
-          estado.textContent = "❌ " + (data.error || "No autorizado.");
+          throw new Error(data.error || "Error del servidor");
         }
       })
       .catch(err => {
-        estado.style.color = "#dc2626";
-        estado.textContent = "❌ Error al enviar: " + err.message;
+        // Si falla la red en medio del envío, lo respalda en la cola offline automáticamente
+        payload.observacion = (observacion ? observacion + " " : "") + `[Respaldo offline ${horaLocal}]`;
+        guardarEnColaOffline(payload);
+        estado.style.color = "#d97706";
+        estado.textContent = "💾 Falló la señal: guardado en el teléfono para subir luego.";
+        limpiarFormularioTrasGuardar();
       })
       .finally(() => {
         btn.disabled = false;
         btn.textContent = "Guardar Registro";
       });
+    }
+
+    async function sincronizarPendientes() {
+      const cola = obtenerColaOffline();
+      if (cola.length === 0) return;
+
+      if (!navigator.onLine) {
+        alert("Aún no tienes conexión a internet. Inténtalo cuando recuperes señal.");
+        return;
+      }
+
+      const btnSync = document.getElementById('btnSincronizar');
+      const estado = document.getElementById('estado');
+      btnSync.disabled = true;
+      btnSync.textContent = "Subiendo...";
+
+      const restantes = [];
+      let subidos = 0;
+
+      for (const item of cola) {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(item)
+          });
+          const data = await res.json();
+          if (data.result === "success") {
+            subidos++;
+          } else {
+            restantes.push(item);
+          }
+        } catch (e) {
+          restantes.push(item);
+        }
+      }
+
+      localStorage.setItem(STORAGE_COLA, JSON.stringify(restantes));
+      actualizarBannerPendientes();
+      btnSync.disabled = false;
+      btnSync.textContent = "Subir ahora";
+
+      if (subidos > 0) {
+        estado.style.color = "#16a34a";
+        estado.textContent = `✅ ¡Se subieron ${subidos} registro(s) pendientes a Google Sheets!`;
+      }
     }
 
     if ('serviceWorker' in navigator) {
