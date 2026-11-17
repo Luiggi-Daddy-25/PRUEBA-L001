@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ficha de Campo Segura - v3.1 PWA</title>
+  <title>Ficha de Campo GPS + Foto - v4.0</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=FC&background=0d9488&color=fff&size=180&bold=true">
   <meta name="theme-color" content="#0d9488">
   <meta name="mobile-web-app-capable" content="yes">
   <style>
@@ -45,7 +46,7 @@
       font-size: 22px;
     }
     p.subtitle {
-      margin: 0 0 20px 0;
+      margin: 0 0 18px 0;
       color: #64748b;
       font-size: 14px;
     }
@@ -71,13 +72,13 @@
     }
     textarea {
       resize: vertical;
-      min-height: 85px;
+      min-height: 75px;
     }
     .chips-container {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
     .chip {
       background-color: #f1f5f9;
@@ -96,6 +97,74 @@
       color: #ffffff;
       border-color: #0f766e;
       box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35);
+    }
+    /* Caja de GPS */
+    .gps-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .btn-gps {
+      background: #e2e8f0;
+      border: none;
+      color: #1e293b;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    /* Botón de cámara */
+    .camera-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 2px dashed #94a3b8;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 14px;
+      transition: all 0.2s;
+    }
+    .camera-btn:hover {
+      background: #e2e8f0;
+      border-color: #0d9488;
+    }
+    #previewContainer {
+      position: relative;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    #fotoPreview {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 10px;
+      border: 2px solid #cbd5e1;
+    }
+    .btn-remove-photo {
+      display: inline-block;
+      margin-top: 6px;
+      background: #fee2e2;
+      color: #dc2626;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
     }
     button.btn-submit {
       width: 100%;
@@ -151,7 +220,7 @@
 
   <!-- PANTALLA 1: LOGIN -->
   <div class="card" id="loginCard">
-    <span class="badge-version">v3.1 • App Instalable (PWA)</span>
+    <span class="badge-version">v4.0 • GPS + Evidencia Fotográfica</span>
     <h2>Iniciar Sesión</h2>
     <p class="subtitle">Ingresa tus credenciales autorizadas para registrar datos:</p>
 
@@ -165,15 +234,21 @@
     <div class="status-msg" id="loginEstado"></div>
   </div>
 
-  <!-- PANTALLA 2: FORMULARIO DE REGISTRO (Oculto hasta validar) -->
+  <!-- PANTALLA 2: FORMULARIO DE REGISTRO -->
   <div class="card hidden" id="appCard">
     <div class="topbar-user">
       <span>👤 Conectado: <strong id="usuarioActivoLabel"></strong></span>
       <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
     </div>
 
-    <h2>Ficha de Campo Rápida</h2>
-    <p class="subtitle">Selecciona una o varias etiquetas para registrar el punto:</p>
+    <h2>Ficha de Campo</h2>
+    <p class="subtitle">Registra hallazgos, ubicación GPS y foto de evidencia:</p>
+
+    <!-- Estado GPS Automático -->
+    <div class="gps-box">
+      <span id="gpsTexto">📍 Obteniendo ubicación GPS...</span>
+      <button type="button" class="btn-gps" onclick="obtenerGPS()">🔄 Actualizar</button>
+    </div>
 
     <label>1. Hallazgos / Tipo de Residuo:</label>
     <div class="chips-container" id="chipsContainer">
@@ -185,7 +260,19 @@
       <div class="chip" data-valor="Casa cerrada">🚪 Casa cerrada</div>
     </div>
 
-    <label for="observacion">2. Observación adicional (opcional):</label>
+    <label>2. Fotografía de Evidencia:</label>
+    <input type="file" id="inputFoto" accept="image/*" capture="environment" class="hidden" onchange="procesarFoto(event)">
+    <button type="button" class="camera-btn" onclick="document.getElementById('inputFoto').click()">
+      📷 Tomar / Subir Foto
+    </button>
+
+    <div id="previewContainer" class="hidden">
+      <img id="fotoPreview" src="" alt="Vista previa">
+      <br>
+      <button type="button" class="btn-remove-photo" onclick="quitarFoto()">🗑️ Quitar foto</button>
+    </div>
+
+    <label for="observacion">3. Observación adicional (opcional):</label>
     <textarea id="observacion" placeholder="Ej. Jr. Ucayali cuadra 4, vecino participó..."></textarea>
 
     <button class="btn-submit" id="btnEnviar" onclick="enviarDatos()">Guardar Registro</button>
@@ -197,16 +284,84 @@
 
     let sesionUsuario = "";
     let sesionClave = "";
+    let latActual = "";
+    let lonActual = "";
+    let fotoComprimidaBase64 = "";
 
     // Activar/desactivar etiquetas
     document.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => chip.classList.toggle('selected'));
     });
 
-    // Permitir entrar presionando Enter en la contraseña
     document.getElementById('loginPass').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') iniciarSesion();
     });
+
+    // Captura de Ubicación GPS
+    function obtenerGPS() {
+      const gpsTexto = document.getElementById('gpsTexto');
+      gpsTexto.textContent = "⏳ Buscando satélites GPS...";
+
+      if (!navigator.geolocation) {
+        gpsTexto.textContent = "❌ GPS no soportado en este dispositivo";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          latActual = pos.coords.latitude.toFixed(6);
+          lonActual = pos.coords.longitude.toFixed(6);
+          const precision = Math.round(pos.coords.accuracy);
+          gpsTexto.innerHTML = `✅ <strong>${latActual}, ${lonActual}</strong> (±${precision}m)`;
+        },
+        (err) => {
+          gpsTexto.textContent = "⚠️ Sin permiso GPS (activa ubicación)";
+          latActual = "Sin GPS";
+          lonActual = "Sin GPS";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // Comprimir foto en el navegador antes de subirla
+    function procesarFoto(event) {
+      const archivo = event.target.files[0];
+      if (!archivo) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // Redimensiona a máx 800px para subida rápida
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Exportar como JPEG comprimido al 75% de calidad
+          fotoComprimidaBase64 = canvas.toDataURL('image/jpeg', 0.75);
+          document.getElementById('fotoPreview').src = fotoComprimidaBase64;
+          document.getElementById('previewContainer').classList.remove('hidden');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(archivo);
+    }
+
+    function quitarFoto() {
+      fotoComprimidaBase64 = "";
+      document.getElementById('inputFoto').value = "";
+      document.getElementById('previewContainer').classList.add('hidden');
+    }
 
     function iniciarSesion() {
       const user = document.getElementById('loginUser').value.trim();
@@ -223,7 +378,7 @@
       btn.disabled = true;
       btn.textContent = "Verificando...";
       estado.style.color = "#0284c7";
-      estado.textContent = "🔐 Validando credenciales en servidor...";
+      estado.textContent = "🔐 Validando credenciales...";
 
       fetch(SCRIPT_URL, {
         method: "POST",
@@ -243,6 +398,8 @@
           document.getElementById('loginCard').classList.add('hidden');
           document.getElementById('appCard').classList.remove('hidden');
           estado.textContent = "";
+          // Activar captura automática de GPS apenas entra
+          obtenerGPS();
         } else {
           estado.style.color = "#dc2626";
           estado.textContent = "❌ " + (data.error || "Acceso denegado.");
@@ -261,6 +418,7 @@
     function cerrarSesion() {
       sesionUsuario = "";
       sesionClave = "";
+      quitarFoto();
       document.getElementById('loginUser').value = "";
       document.getElementById('loginPass').value = "";
       document.getElementById('estado').textContent = "";
@@ -275,18 +433,18 @@
       const estado = document.getElementById('estado');
       const btn = document.getElementById('btnEnviar');
 
-      if (seleccionadas.length === 0 && observacion === "") {
+      if (seleccionadas.length === 0 && observacion === "" && !fotoComprimidaBase64) {
         estado.style.color = "#dc2626";
-        estado.textContent = "⚠️ Selecciona al menos una etiqueta o escribe una observación.";
+        estado.textContent = "⚠️ Selecciona una etiqueta, toma una foto o escribe una observación.";
         return;
       }
 
       const textoEtiquetas = seleccionadas.length > 0 ? seleccionadas.join(", ") : "Sin etiquetas";
 
       btn.disabled = true;
-      btn.textContent = "Enviando...";
+      btn.textContent = "Subiendo...";
       estado.style.color = "#0284c7";
-      estado.textContent = "⏳ Guardando en Google Sheets...";
+      estado.textContent = fotoComprimidaBase64 ? "⏳ Subiendo foto y datos..." : "⏳ Guardando registro...";
 
       fetch(SCRIPT_URL, {
         method: "POST",
@@ -296,16 +454,22 @@
           usuario: sesionUsuario,
           clave: sesionClave,
           qr: textoEtiquetas,
-          observacion: observacion
+          observacion: observacion,
+          latitud: latActual,
+          longitud: lonActual,
+          fotoBase64: fotoComprimidaBase64
         })
       })
       .then(res => res.json())
       .then(data => {
         if (data.result === "success") {
           estado.style.color = "#16a34a";
-          estado.textContent = "✅ ¡Registro guardado por " + sesionUsuario + "!";
+          estado.textContent = "✅ ¡Guardado con ubicación" + (fotoComprimidaBase64 ? " y foto!" : "!");
           document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
           document.getElementById('observacion').value = "";
+          quitarFoto();
+          // Refrescar GPS para el siguiente punto
+          obtenerGPS();
         } else {
           estado.style.color = "#dc2626";
           estado.textContent = "❌ " + (data.error || "No autorizado.");
@@ -321,12 +485,9 @@
       });
     }
 
-    // Registrar Service Worker para convertir la web en App Instalable (PWA)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(() => console.log('PWA lista para instalar'))
-          .catch(err => console.error('Error SW:', err));
+        navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
       });
     }
   </script>
